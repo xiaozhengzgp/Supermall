@@ -3,6 +3,13 @@
     <nav-bar class="home-nav">
       <div slot="center">购物街</div>
     </nav-bar>
+    <tab-control
+      :titles="['流行','新款','精选']"
+      @tabClick="homeTabClick"
+      ref="tabControl1"
+      class="tab-control"
+      v-show="isTabFixed"
+    ></tab-control>
     <scroll
       class="content"
       ref="scroll"
@@ -11,10 +18,10 @@
       :pull-up-load="true"
       @pullingUp="loadmore"
     >
-      <home-swiper :banners="banners"></home-swiper>
+      <home-swiper :banners="banners" @swiperImageLoad="swiperImageLoad"></home-swiper>
       <home-recommend-view :recommends="recommends"></home-recommend-view>
       <feature-view></feature-view>
-      <tab-control class="tab-control" :titles="['流行','新款','精选']" @tabClick="homeTabClick"></tab-control>
+      <tab-control :titles="['流行','新款','精选']" @tabClick="homeTabClick" ref="tabControl2"></tab-control>
       <goods-list :goods="showGoods"></goods-list>
     </scroll>
     <back-top @click.native="backClick" v-show="isShowBackTop"></back-top>
@@ -33,6 +40,8 @@ import Scroll from "components/common/scroll/Scroll";
 import BackTop from "components/content/backTop/BackTop";
 
 import { getHomeMultidata, getHomeGoods } from "network/home";
+import { debounce } from "common/utils";
+import { itemImgListenerMixin } from "common/mixin";
 
 export default {
   name: "Home",
@@ -46,6 +55,7 @@ export default {
     Scroll,
     BackTop,
   },
+  mixins: [itemImgListenerMixin],
   data() {
     return {
       banners: [],
@@ -57,7 +67,31 @@ export default {
       },
       currentType: "pop",
       isShowBackTop: false,
+      tabOffsetTop: 0,
+      isTabFixed: false,
+      saveY: 0,
     };
+  },
+  computed: {
+    showGoods(index) {
+      return this.goods[this.currentType].list;
+    },
+  },
+  destroyed() {
+    console.log("home 被销毁 destroyed");
+  },
+  activated() {
+    // console.log("activated 此时处于活跃");
+    this.$refs.scroll.refresh();
+    this.$refs.scroll.scrollTo(0, this.saveY, 0);
+  },
+  deactivated() {
+    // 1.保存离开时滚动的位置
+    // console.log("deactivated 此时离开");
+    this.saveY = this.$refs.scroll.getScrollY();
+
+    // 2.取消全局事件的监听
+    this.$bus.$off("itemImageLoad", this.itemImgListener);
   },
   created() {
     // 1.请求多个数据
@@ -68,10 +102,14 @@ export default {
     this.getHomeGoods("new");
     this.getHomeGoods("sell");
   },
-  computed: {
-    showGoods(index) {
-      return this.goods[this.currentType].list;
-    },
+  mounted() {
+    // 1.图片加载完成的事件监听
+    // this.$bus.$on("itemImageLoad", () => {
+    //   // console.log("哈哈哈30");
+    //   this.$refs.scroll && this.$refs.scroll.refresh();
+    // });
+    // 2.获取tabControl的offsetTop值
+    // 所有的组件都有一个属性$el:用于获取组件中的元素
   },
   methods: {
     // 1.事件监听相关的方法
@@ -88,6 +126,8 @@ export default {
           this.currentType = "sell";
           break;
       }
+      this.$refs.tabControl1.currentIndex = index;
+      this.$refs.tabControl2.currentIndex = index;
     },
     backClick() {
       // console.log(111);
@@ -95,12 +135,21 @@ export default {
       this.$refs.scroll.scrollTo(0, 0, 1000);
     },
     contentClick(position) {
+      // 1.判断BackTop是否显示
       // console.log(position);
       this.isShowBackTop = -position.y > 1000;
+
+      // 2.决定tabControl是否吸顶(position: fixed)
+      this.isTabFixed = -position.y > this.tabOffsetTop;
     },
     loadmore() {
       // console.log("加载");
       this.getHomeGoods(this.currentType);
+    },
+    swiperImageLoad() {
+      // console.log("轮播图加载完毕");
+      // console.log(this.$refs.tabControl.$el.offsetTop);
+      this.tabOffsetTop = this.$refs.tabControl2.$el.offsetTop;
     },
 
     // 2.网络请求的方法
@@ -118,6 +167,7 @@ export default {
         this.goods[type].list.push(...res.data.list);
         this.goods[type].page += 1;
 
+        // 完成上拉加载更多
         this.$refs.scroll.finishPullUp();
       });
     },
@@ -127,7 +177,7 @@ export default {
 
 <style scoped>
 #home {
-  padding-top: 44px;
+  /* padding-top: 44px; */
   height: 100vh;
   position: relative;
 }
@@ -135,17 +185,12 @@ export default {
   background-color: var(--color-tint);
   color: #fff;
 
-  position: fixed;
+  /* 在使用浏览器原生滚动时，为了让导航不跟随一起滚动 */
+  /* position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  z-index: 9;
-}
-
-.tab-control {
-  position: sticky;
-  top: 44px;
-  z-index: 9;
+  z-index: 9; */
 }
 
 .content {
@@ -158,6 +203,18 @@ export default {
   left: 0;
   right: 0;
 }
+
+.tab-control {
+  position: relative;
+  z-index: 9;
+}
+
+/* .fixed {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 44px;
+} */
 
 /* .content {
   height: calc(100% - 93px);

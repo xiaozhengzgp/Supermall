@@ -35,23 +35,34 @@ export default {
     });
 
     // 2.监听滚动的位置
-    this.scroll.on("scroll", (position) => {
-      // console.log(position);
-      this.$emit("scrollC", position);
-    });
+    if (this.probeType === 2 || this.probeType === 3) {
+      this.scroll.on("scroll", (position) => {
+        // console.log(position);
+        this.$emit("scrollC", position);
+      });
+    }
 
     // 3.监听上拉加载更多
-    this.scroll.on("pullingUp", () => {
-      // console.log("xix");
-      this.$emit("pullingUp");
-    });
+    if (this.pullUpLoad) {
+      this.scroll.on("pullingUp", () => {
+        // console.log("xix");
+        this.$emit("pullingUp");
+      });
+    }
   },
   methods: {
     scrollTo(x, y, time = 500) {
-      this.scroll.scrollTo(x, y, time);
+      this.scroll && this.scroll.scrollTo(x, y, time);
     },
     finishPullUp() {
       this.scroll.finishPullUp();
+    },
+    refresh() {
+      // console.log("------");
+      this.scroll && this.scroll.refresh();
+    },
+    getScrollY() {
+      return this.scroll ? this.scroll.y : 0;
     },
   },
 };
